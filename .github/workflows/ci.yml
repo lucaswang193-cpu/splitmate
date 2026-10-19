@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-    backend:
+  backend:
     name: Backend Build and Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
