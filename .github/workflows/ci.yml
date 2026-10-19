@@ -11,10 +11,31 @@ permissions:
   contents: read
 
 jobs:
-  backend:
-    name: Backend Build
+    backend:
+    name: Backend Build and Test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+
+    env:
+      TEST_DB_URL: 'jdbc:sqlserver://localhost:1433;databaseName=splitmate_test;encrypt=true;trustServerCertificate=true'
+      TEST_DB_USERNAME: sa
+      TEST_DB_PASSWORD: 'Splitmate_CI_Only_2026!'
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Splitmate_CI_Only_2026!'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Splitmate_CI_Only_2026!' -C -b -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 30s
 
     steps:
       - name: Checkout repository
@@ -27,8 +48,19 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Build Spring Boot
-        run: bash ./mvnw -B clean package -DskipTests
+      - name: Create test database
+        env:
+          SQLSERVER_CONTAINER: ${{ job.services.sqlserver.id }}
+        run: |
+          docker exec "$SQLSERVER_CONTAINER" \
+            /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P "$TEST_DB_PASSWORD" \
+            -C -b -Q "CREATE DATABASE splitmate_test"
+
+      - name: Build and test Spring Boot
+        env:
+          SPRING_PROFILES_ACTIVE: test
+        run: bash ./mvnw -B clean verify
 
   frontend:
     name: Frontend Build
