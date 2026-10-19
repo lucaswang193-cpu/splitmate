@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.splitmate.entity.User;
+import com.splitmate.repository.PhoneVerificationRepository;
 import com.splitmate.repository.UserRepository;
 
 import tools.jackson.databind.JsonNode;
@@ -35,6 +36,9 @@ public class ApiFlowTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PhoneVerificationRepository phoneVerificationRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -274,6 +278,30 @@ public class ApiFlowTest {
 
         mockMvc.perform(delete("/api/group-members/groups/%s/users/%s".formatted(groupId, aliceId))
                         .header("Authorization", bearer(accessToken)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(delete("/api/group-members/groups/%s/users/%s".formatted(groupId, aliceId))
+                        .header("Authorization", bearer(bobAccessToken)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Settle your group balance before leaving"));
+
+        // Deleting the expense leaves the earlier repayment outstanding; refund it first.
+        mockMvc.perform(post("/api/settlements")
+                        .header("Authorization", bearer(accessToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "groupId": "%s",
+                                  "fromUserId": "%s",
+                                  "toUserId": "%s",
+                                  "amount": 1320.00,
+                                  "currency": "TWD"
+                                }
+                                """.formatted(groupId, aliceId, bobId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/api/group-members/groups/%s/users/%s".formatted(groupId, aliceId))
+                        .header("Authorization", bearer(bobAccessToken)))
                 .andExpect(status().isOk());
     }
 
@@ -466,8 +494,10 @@ public class ApiFlowTest {
         String email = "phone-verify-" + System.currentTimeMillis() + "@example.com";
         String phoneNumber = "+8869" + System.nanoTime();
         String userId = createUser("Phone Verify User", email, phoneNumber);
+        String accessToken = loginAndGetToken(email);
 
         String verificationBody = mockMvc.perform(post("/api/auth/phone-verifications")
+                        .header("Authorization", bearer(accessToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -476,17 +506,19 @@ public class ApiFlowTest {
                                 }
                                 """.formatted(userId, phoneNumber)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.code").doesNotExist())
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
-        String code = objectMapper.readTree(verificationBody)
-                .get("data")
-                .get("code")
-                .asText();
+        long verificationId = objectMapper.readTree(verificationBody)
+                .get("data").get("id").asLong();
+        String code = phoneVerificationRepository.findById(verificationId)
+                .orElseThrow().getCode();
 
         mockMvc.perform(post("/api/auth/phone-verifications/confirm")
+                        .header("Authorization", bearer(accessToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -513,9 +545,12 @@ public class ApiFlowTest {
     @Test
     void shouldRejectIncorrectPhoneVerificationCode() throws Exception {
         String phoneNumber = "+8869" + System.nanoTime();
-        String userId = createUser("Wrong Code User", "wrong-code-" + System.currentTimeMillis() + "@example.com", phoneNumber);
+        String email = "wrong-code-" + System.currentTimeMillis() + "@example.com";
+        String userId = createUser("Wrong Code User", email, phoneNumber);
+        String accessToken = loginAndGetToken(email);
 
         String verificationBody = mockMvc.perform(post("/api/auth/phone-verifications")
+                        .header("Authorization", bearer(accessToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -528,13 +563,14 @@ public class ApiFlowTest {
                 .getResponse()
                 .getContentAsString();
 
-        String correctCode = objectMapper.readTree(verificationBody)
-                .get("data")
-                .get("code")
-                .asText();
+        long verificationId = objectMapper.readTree(verificationBody)
+                .get("data").get("id").asLong();
+        String correctCode = phoneVerificationRepository.findById(verificationId)
+                .orElseThrow().getCode();
         String wrongCode = "000000".equals(correctCode) ? "111111" : "000000";
 
         mockMvc.perform(post("/api/auth/phone-verifications/confirm")
+                        .header("Authorization", bearer(accessToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -545,8 +581,14 @@ public class ApiFlowTest {
                                 """.formatted(userId, phoneNumber, wrongCode)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_ERROR"))
-                .andExpect(jsonPath("$.message").value("Phone verification code incorrect"));
+                .andExpect(jsonPath("$.errorCode").value("PHONE_VERIFICATION_FAILED"))
+                .andExpect(jsonPath("$.message").value("Phone verification code incorrect"))
+                .andExpect(jsonPath("$.data.attemptCount").value(1))
+                .andExpect(jsonPath("$.data.remainingAttempts").value(4))
+                .andExpect(jsonPath("$.data.status").value("PENDING"));
+
+        org.junit.jupiter.api.Assertions.assertEquals(1,
+                phoneVerificationRepository.findById(verificationId).orElseThrow().getAttemptCount());
     }
 
     @Test
