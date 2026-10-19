@@ -1,0 +1,12 @@
+# Create application-local.properties with your own local values.
+spring.datasource.url=jdbc:sqlserver://localhost:1433;databaseName=splitmate;encrypt=true;trustServerCertificate=true
+spring.datasource.username=YOUR_DATABASE_USERNAME
+spring.datasource.password=YOUR_DATABASE_PASSWORD
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+
+# Use a private random secret of at least 32 bytes.
+jwt.secret=YOUR_LOCAL_JWT_SECRET_AT_LEAST_32_BYTES
+google.client-id=YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com
