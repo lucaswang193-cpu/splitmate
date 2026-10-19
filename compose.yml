@@ -1,0 +1,30 @@
+name: splitmate
+
+services:
+  backend:
+    container_name: splitmate-backend
+    image: splitmate-backend:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    expose:
+      - '8080'
+    restart: unless-stopped
+
+  frontend:
+    container_name: splitmate-frontend
+    image: splitmate-frontend:local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Google Client ID is required}
+    ports:
+      - '80:80'
+    depends_on:
+      - backend
+    restart: unless-stopped

@@ -1,0 +1,11 @@
+.git/
+.github/
+.agents/
+.vscode/
+target/
+frontend/
+src/test/
+**/.env*
+**/application-local.*
+**/application-test-local.*
+**/*.log
