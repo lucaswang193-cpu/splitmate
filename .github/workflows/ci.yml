@@ -143,3 +143,24 @@ jobs:
 
           docker push "${IMAGE_PREFIX}-backend:$GITHUB_SHA"
           docker push "${IMAGE_PREFIX}-frontend:$GITHUB_SHA"
+  deploy:
+    name: Trigger Local Deployment
+    needs: [publish]
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger deployment workflow
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_REPO_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "DEPLOY_REPO_TOKEN is not configured"
+            exit 1
+          fi
+
+          gh workflow run deploy.yml \
+            --repo lucaswang193-cpu/splitmate-deploy \
+            --ref main \
+            -f image_tag="$GITHUB_SHA"

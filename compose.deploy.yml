@@ -1,0 +1,22 @@
+name: splitmate
+
+services:
+  backend:
+    container_name: splitmate-backend
+    image: ghcr.io/lucaswang193-cpu/splitmate-backend:${IMAGE_TAG:?IMAGE_TAG is required}
+    env_file:
+      - .env.docker
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    expose:
+      - '8080'
+    restart: unless-stopped
+
+  frontend:
+    container_name: splitmate-frontend
+    image: ghcr.io/lucaswang193-cpu/splitmate-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    ports:
+      - '80:80'
+    depends_on:
+      - backend
+    restart: unless-stopped
