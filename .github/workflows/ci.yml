@@ -91,9 +91,6 @@ jobs:
       - name: Build Vue application
         run: npm run build
 
-      - name: Build Vue application
-        run: npm run build
-
       - name: Build frontend Docker image
         env:
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
@@ -102,3 +99,47 @@ jobs:
           docker build \
             --build-arg VITE_GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
             -t splitmate-frontend:ci .
+
+  publish:
+    name: Publish Docker Images
+    needs: [backend, frontend]
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" |
+            docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+      - name: Build and publish images
+        env:
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+        run: |
+          test -n "$GOOGLE_CLIENT_ID"
+
+          IMAGE_PREFIX="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/splitmate"
+          SOURCE_URL="https://github.com/$GITHUB_REPOSITORY"
+
+          docker build \
+            --label "org.opencontainers.image.source=$SOURCE_URL" \
+            -t "${IMAGE_PREFIX}-backend:$GITHUB_SHA" .
+
+          docker build \
+            --build-arg VITE_GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+            --label "org.opencontainers.image.source=$SOURCE_URL" \
+            -t "${IMAGE_PREFIX}-frontend:$GITHUB_SHA" ./frontend
+
+          docker push "${IMAGE_PREFIX}-backend:$GITHUB_SHA"
+          docker push "${IMAGE_PREFIX}-frontend:$GITHUB_SHA"
