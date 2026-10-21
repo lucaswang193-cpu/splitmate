@@ -8,7 +8,6 @@ import java.util.UUID;
 import java.util.Objects;
 import java.util.HashSet;
 import com.splitmate.exception.ConflictException;
-import com.splitmate.security.SecurityUtils;
 import com.splitmate.repository.ExpenseGroupRepository;
 import jakarta.persistence.EntityManager;
 

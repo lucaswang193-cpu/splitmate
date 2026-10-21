@@ -2,6 +2,7 @@ package com.splitmate.exception;
 
 import java.util.stream.Collectors;
 
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -74,7 +75,7 @@ public class GlobalExceptionHandler {
         }
 
         // Handle missing or invalid query parameters and return a structured error
-        // response
+        // status code 400
         @ExceptionHandler({
                         org.springframework.web.bind.MissingServletRequestParameterException.class,
                         org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class
@@ -92,5 +93,25 @@ public class GlobalExceptionHandler {
                         AccessDeniedException ex) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                                 .body(ApiResponse.fail("FORBIDDEN", "Access denied"));
+        }
+
+        // Handle login rate limiting and return a structured error response
+        //status code 429
+        @ExceptionHandler(LoginRateLimitedException.class)
+        public ResponseEntity<ApiResponse<Void>> handleLoginRateLimited(
+                        LoginRateLimitedException ex) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                                .body(ApiResponse.fail(
+                                                "LOGIN_RATE_LIMITED", ex.getMessage()));
+        }
+        // Handle Redis connection failures and return a structured error response
+        //status code 503
+        @ExceptionHandler(RedisConnectionFailureException.class)
+        public ResponseEntity<ApiResponse<Void>> handleRedisConnectionFailure(
+                        RedisConnectionFailureException ex) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                                .body(ApiResponse.fail(
+                                                "SERVICE_UNAVAILABLE",
+                                                "Login is temporarily unavailable. Please try again later"));
         }
 }

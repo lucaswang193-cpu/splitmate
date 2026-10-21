@@ -20,6 +20,11 @@ jobs:
       TEST_DB_URL: "jdbc:sqlserver://localhost:1433;databaseName=splitmate_test;encrypt=true;trustServerCertificate=true"
       TEST_DB_USERNAME: sa
       TEST_DB_PASSWORD: "Splitmate_CI_Only_2026!"
+      SPRING_DATA_REDIS_HOST: localhost
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_CONNECT_TIMEOUT: 2s
+      SPRING_DATA_REDIS_TIMEOUT: 2s
+      SPRING_DATA_REDIS_REPOSITORIES_ENABLED: "false"
 
     services:
       sqlserver:
@@ -36,6 +41,15 @@ jobs:
           --health-timeout 5s
           --health-retries 20
           --health-start-period 30s
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     steps:
       - name: Checkout repository

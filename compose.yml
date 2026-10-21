@@ -11,8 +11,16 @@ services:
       - .env.docker
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_CONNECT_TIMEOUT: 2s
+      SPRING_DATA_REDIS_TIMEOUT: 2s
+      SPRING_DATA_REDIS_REPOSITORIES_ENABLED: "false"
+    depends_on:
+      redis:
+        condition: service_healthy
     expose:
-      - '8080'
+      - "8080"
     restart: unless-stopped
 
   frontend:
@@ -24,7 +32,17 @@ services:
       args:
         VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Google Client ID is required}
     ports:
-      - '80:80'
+      - "80:80"
     depends_on:
       - backend
+    restart: unless-stopped
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
